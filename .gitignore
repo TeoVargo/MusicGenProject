@@ -1,2 +1,4 @@
 /.DS_Store
 /training_checkpoints
+pitches_w_instruments.csv
+example.midi
