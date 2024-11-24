@@ -5,3 +5,4 @@ example.midi
 music_generation.ipynb
 WeimarQueries.ipynb
 .vscode
+__pycache__
