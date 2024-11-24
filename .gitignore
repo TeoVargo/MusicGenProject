@@ -2,5 +2,7 @@
 /training_checkpoints
 pitches_w_instruments.csv
 example.midi
+music_generation.ipynb
+WeimarQueries.ipynb
 .vscode
-
+__pycache__
