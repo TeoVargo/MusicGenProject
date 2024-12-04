@@ -25,7 +25,8 @@ def extract_notes() -> pd.DataFrame :
 
     df = pd.read_sql_query('''
                         SELECT melody.melid, 
-                           melody.pitch, 
+                           melody.pitch,
+                           melody.pitch / 128 as pitch_norm,
                            melody.onset as start,
                            melody.onset + melody.duration as end,
                            melody.duration, 
@@ -33,7 +34,9 @@ def extract_notes() -> pd.DataFrame :
                            solo_info.key,
                            solo_info.style,
                            solo_info.avgtempo as tempo,
-                           solo_info.rhythmfeel as feel
+                           solo_info.rhythmfeel as feel,
+                           solo_info.title,
+                           solo_info.performer
                         FROM melody
                         JOIN solo_info
                         ON melody.melid = solo_info.melid
@@ -54,42 +57,7 @@ def contour(interval: int):
   else:
     return interval
 
-# from tensorFlow MusGen tutorial 
-# Create a tensor flow dataset of sequences to use to train the monster.
-def create_sequences(
-    dataset: tf.data.Dataset,
-    seq_length: int,
-    vocab_size: int,
-    key_order,
-) -> tf.data.Dataset:
-  """Returns TF Dataset of sequence and label examples."""
-  seq_length = seq_length+1
-
-  # Take 1 extra for the labels
-  windows = dataset.window(seq_length, shift=1, stride=1,
-                              drop_remainder=True)
-
-  # `flat_map` flattens the" dataset of datasets" into a dataset of tensors
-  flatten = lambda x: x.batch(seq_length, drop_remainder=True)
-  sequences = windows.flat_map(flatten)
-
-  # Normalize note pitch 
-  def scale_pitch(x):
-    x = x/[vocab_size,1.0,1.0,1.0]
-    return x
-
-  # Split the labels
-  def split_labels(sequences):
-    inputs = sequences[:-1]
-    labels_dense = sequences[-1]
-    labels = {key:labels_dense[i] for i,key in enumerate(key_order)}
-
-    return scale_pitch(inputs), labels
-    #return inputs, labels
-
-  return sequences.map(split_labels, num_parallel_calls=tf.data.AUTOTUNE)
-
-# Function to take our notes and convert them into midi
+# Function to take a frame of notes and convert them into a midi file
 def notes_to_midi(
   notes: pd.DataFrame,
   out_file: str, 
@@ -97,14 +65,14 @@ def notes_to_midi(
   velocity: int = 100,  # note loudness
 ) -> pretty_midi.PrettyMIDI:
 
-  pm = pretty_midi.PrettyMIDI()
+  pm = pretty_midi.PrettyMIDI(initial_tempo=notes['tempo'][0])
   instrument = pretty_midi.Instrument(
       program=pretty_midi.instrument_name_to_program(
           instrument_name))
 
-  prev_start = 0
+  start = 0
   for i, note in notes.iterrows():
-    start = float(prev_start + note['step'])
+    next_start = float(start + note['step'])
     end = float(start + note['duration'])
     note = pretty_midi.Note(
         velocity=velocity,
@@ -113,7 +81,7 @@ def notes_to_midi(
         end=end,
     )
     instrument.notes.append(note)
-    prev_start = start
+    start = next_start
 
   pm.instruments.append(instrument)
   pm.write(out_file)
